@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { PrismaClient } from "@prisma/client";
-import jose from "jose";
+
 import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
@@ -10,26 +10,7 @@ export default async function handler(
   res: NextApiResponse
 ) {
   const bearerToken = req.headers["authorization"] as string;
-
-  if (!bearerToken) {
-    res.status(401).json({ errorMessage: "Unauthorized request" });
-  }
-
   const token = bearerToken.split(" ")[1];
-
-  if (!token) {
-    res.status(401).json({ errorMessage: "Unauthorized request" });
-  }
-
-  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-
-  try {
-    await jose.jwtVerify(token, secret);
-  } catch (error) {
-    if (!token) {
-      return res.status(401).json({ errorMessage: "Unauthorized reques" });
-    }
-  }
 
   const payload = jwt.decode(token) as { email: string };
 
@@ -37,7 +18,7 @@ export default async function handler(
     return res.status(401).json({ errorMessage: "Unauthorized reques" });
   }
 
-  const user = prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { email: payload.email },
     select: {
       id: true,
@@ -49,5 +30,17 @@ export default async function handler(
     },
   });
 
-  return res.json({ user });
+  if (!user) {
+    return res.status(401).json({
+      errorMessage: "User not found",
+    });
+  }
+
+  return res.json({
+    id: user.id,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    phone: user.phone,
+    city: user.city,
+  });
 }
